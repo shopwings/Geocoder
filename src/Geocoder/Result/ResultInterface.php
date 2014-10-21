@@ -138,6 +138,13 @@ interface ResultInterface
     public function getTimezone();
 
     /**
+     * Returns the type of geocoded location with precision information.
+     *
+     * @return string
+     */
+    public function getLocationType();
+
+    /**
      * Extracts data from an array.
      *
      * @param array $data An array.

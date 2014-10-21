@@ -14,6 +14,7 @@ use Geocoder\Exception\NoResultException;
 use Geocoder\Exception\QuotaExceededException;
 use Geocoder\Exception\UnsupportedException;
 use Geocoder\Exception\InvalidCredentialsException;
+use Geocoder\Exception\RequestFailedException;
 use Geocoder\HttpAdapter\HttpAdapterInterface;
 
 /**
@@ -127,41 +128,47 @@ class GoogleMapsProvider extends AbstractProvider implements LocaleAwareProvider
     protected function executeQuery($query)
     {
         $query = $this->buildQuery($query);
-
         $content = $this->getAdapter()->getContent($query);
 
-        // Throw exception if invalid clientID and/or privateKey used with GoogleMapsBusinessProvider
+        // check if request failed
         if (strpos($content, "Provided 'signature' is not valid for the provided client ID") !== false) {
-            throw new InvalidCredentialsException(sprintf('Invalid client ID / API Key %s', $query));
+            throw new RequestFailedException('Geocoder exception: Invalid client ID or API key');
         }
-
         if (null === $content) {
-            throw new NoResultException(sprintf('Could not execute query %s', $query));
+            throw new RequestFailedException('Geocoder exception: Curl request failed');
         }
 
+        // check if response is missing expected parameters
         $json = json_decode($content);
-
-        // API error
         if (!isset($json)) {
-            throw new NoResultException(sprintf('Could not execute query %s', $query));
+            throw new RequestFailedException('Geocoder exception: Response is not a valid json string');
         }
-
-        if ('REQUEST_DENIED' === $json->status && 'The provided API key is invalid.' === $json->error_message) {
-            throw new InvalidCredentialsException(sprintf('API key is invalid %s', $query));
+        if (!isset($json->status)) {
+            throw new RequestFailedException('Geocoder exception: Response does not have status defined');
         }
-
-        // you are over your quota
-        if ('OVER_QUERY_LIMIT' === $json->status) {
-            throw new QuotaExceededException(sprintf('Daily quota exceeded %s', $query));
-        }
-
         // no result
-        if (!isset($json->results) || !count($json->results) || 'OK' !== $json->status) {
-            throw new NoResultException(sprintf('Could not execute query %s', $query));
+        if (!isset($json->results) || !count($json->results)) {
+            throw new NoResultException('Geocoder has no results for an address: ' . $query);
         }
 
-        $results = array();
+        // check for error status response
+        switch ($json->status) {
+        case 'OK':
+            break;
+        case 'ZERO_RESULTS':
+        case 'INVALID_REQUEST':
+            throw new NoResultException('Geocoder has no results for an address: ' . $query);
+            break;
+        case 'OVER_QUERY_LIMIT':
+        case 'REQUEST_DENIED':
+        case 'UNKNOWN_ERROR':
+            throw new RequestFailedException('Geocoder exception: ' . $json->status);
+        default:
+            throw new RequestFailedException('Geocoder UNKNOWN status: ' . $json->status);
+        }
 
+        // format results
+        $results = array();
         foreach ($json->results as $result) {
             $resultset = $this->getDefaults();
 
@@ -176,6 +183,7 @@ class GoogleMapsProvider extends AbstractProvider implements LocaleAwareProvider
             $coordinates = $result->geometry->location;
             $resultset['latitude']  = $coordinates->lat;
             $resultset['longitude'] = $coordinates->lng;
+            $resultset['locationType'] = $result->geometry->location_type;
 
             $resultset['bounds'] = null;
             if (isset($result->geometry->bounds)) {
