@@ -37,14 +37,16 @@ class GoogleMapsBusinessProvider extends GoogleMapsProvider
      * @param string               $locale     A locale (optional).
      * @param string               $region     Region biasing (optional).
      * @param bool                 $useSsl     Whether to use an SSL connection (optional)
+     * @param string               $channel    Channel to use for reporting purposes
      */
     public function __construct(HttpAdapterInterface $adapter, $clientId, $privateKey = null, $locale = null,
-        $region = null, $useSsl = false)
+        $region = null, $useSsl = false, $channel = null)
     {
         parent::__construct($adapter, $locale, $region, $useSsl);
 
         $this->clientId   = $clientId;
         $this->privateKey = $privateKey;
+        $this->channel = $channel;
     }
 
     /**
@@ -62,6 +64,10 @@ class GoogleMapsBusinessProvider extends GoogleMapsProvider
     {
         $query = parent::buildQuery($query);
         $query = sprintf('%s&client=%s', $query, $this->clientId);
+
+        if (null !== $this->channel) {
+            $query = sprintf('%s&channel=%s', $query, $this->channel);
+        }
 
         if (null !== $this->privateKey) {
             $query = $this->signQuery($query);
