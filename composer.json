@@ -1,5 +1,5 @@
 {
-    "name": "msty/geocoder",
+    "name": "shopwings/geocoder",
     "type": "library",
     "description": "Forked almost missing Geocoder PHP 5.3 library.",
     "keywords": ["geocoder", "geocoding", "abstraction", "geoip"],
